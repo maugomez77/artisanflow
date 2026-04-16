@@ -2,17 +2,13 @@ services:
   - type: web
     name: artisanflow-api
     runtime: python
-    buildCommand: pip install -e .
-    startCommand: artisanflow serve
+    plan: free
+    buildCommand: pip install .
+    startCommand: uvicorn artisanflow.api:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: DATABASE_URL
         sync: false
-      - key: ENV
-        value: production
-
-databases:
-  - name: artisanflow-db
-    plan: starter
-    databaseName: artisanflow
+      - key: PYTHON_VERSION
+        value: "3.11"
