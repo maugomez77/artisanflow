@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
@@ -12,10 +15,29 @@ from .models import (
     QualityAssessment, ShipmentTracking, SubscriptionBox, ArtisanInsight,
 )
 
+
+async def _load_demo_if_empty():
+    """Auto-load demo data if store is empty."""
+    try:
+        artisans = store.get_items("artisans")
+        if not artisans:
+            from . import demo_data
+            demo_data.seed()
+    except Exception:
+        pass
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    asyncio.create_task(_load_demo_if_empty())
+    yield
+
+
 app = FastAPI(
     title="ArtisanFlow API",
     description="Oaxacan artisan craft fulfillment and marketplace platform",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
