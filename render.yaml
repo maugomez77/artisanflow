@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: artisanflow-api
+    runtime: python
+    buildCommand: pip install -e .
+    startCommand: artisanflow serve
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: ENV
+        value: production
+
+databases:
+  - name: artisanflow-db
+    plan: starter
+    databaseName: artisanflow
