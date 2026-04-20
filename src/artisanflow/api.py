@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
 from . import store, ai, research
+from .database import init_db
 from .models import (
     Artisan, Product, Order, Buyer, FulfillmentTask,
     QualityAssessment, ShipmentTracking, SubscriptionBox, ArtisanInsight,
@@ -29,6 +30,7 @@ async def _load_demo_if_empty():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     asyncio.create_task(_load_demo_if_empty())
     yield
 

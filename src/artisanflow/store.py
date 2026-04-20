@@ -1,4 +1,9 @@
-"""ArtisanFlow JSON store — hybrid persistence layer."""
+"""ArtisanFlow hybrid store.
+
+Postgres JSONB single-blob persistence when DATABASE_URL is set (Render deploy),
+JSON file fallback for local dev / CLI. Render free tier has ephemeral disk —
+JSON would be wiped on every cold start, so production must use Postgres.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +11,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .database import KVStore, SessionLocal, is_db_enabled
 from .models import (
     Artisan, Product, Order, Buyer, FulfillmentTask,
     QualityAssessment, ShipmentTracking, SubscriptionBox,
@@ -14,6 +20,8 @@ from .models import (
 
 STORE_DIR = Path.home() / ".artisanflow"
 STORE_FILE = STORE_DIR / "store.json"
+
+_KV_KEY = "main"
 
 _COLLECTIONS = [
     "artisans", "products", "orders", "buyers", "fulfillment_tasks",
@@ -37,20 +45,42 @@ def _empty() -> dict:
     return {c: [] for c in _COLLECTIONS}
 
 
+def _ensure_collections(data: dict) -> dict:
+    for c in _COLLECTIONS:
+        if c not in data:
+            data[c] = []
+    return data
+
+
 def load() -> dict:
+    if is_db_enabled():
+        with SessionLocal() as s:
+            row = s.get(KVStore, _KV_KEY)
+            if row and row.value:
+                return _ensure_collections({**row.value})
+            return _empty()
     if not STORE_FILE.exists():
         return _empty()
     try:
         data = json.loads(STORE_FILE.read_text())
-        for c in _COLLECTIONS:
-            if c not in data:
-                data[c] = []
-        return data
+        return _ensure_collections(data)
     except (json.JSONDecodeError, KeyError):
         return _empty()
 
 
 def save(data: dict) -> None:
+    if is_db_enabled():
+        # Normalize non-JSON-native types (datetime, etc.) via json round-trip
+        # to match the `default=str` behavior of the file path.
+        safe = json.loads(json.dumps(data, default=str))
+        with SessionLocal() as s:
+            row = s.get(KVStore, _KV_KEY)
+            if row:
+                row.value = safe
+            else:
+                s.add(KVStore(key=_KV_KEY, value=safe))
+            s.commit()
+        return
     STORE_DIR.mkdir(parents=True, exist_ok=True)
     STORE_FILE.write_text(json.dumps(data, indent=2, default=str))
 
